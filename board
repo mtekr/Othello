@@ -1,0 +1,224 @@
+from cmu_graphics import *
+
+class Board:
+    def __init__(self, rows, cols, width, height, boardLeft, boardTop, 
+                 boardWidth, boardHeight, cellBorderWidth, theBoard):
+        self.rows = rows
+        self.cols = cols
+        self.width = width 
+        self.height = height
+        self.boardLeft = boardLeft
+        self.boardTop = boardTop
+        self.boardWidth = boardWidth
+        self.boardHeight = boardHeight
+        self.cellBorderWidth = cellBorderWidth
+        self.theBoard = theBoard
+
+    # Citation: the code used to draw the basic board structure 
+    # is based on my CS Academy Tetris Case Study code
+    def draw(self):
+        # draw the whole board
+        for row in range(self.rows):
+            for col in range(self.cols):
+                self.drawCell(row, col)
+
+    def drawBoardBorder(self):
+        # draw the board outline (with double-thickness):
+        drawRect(self.boardLeft, self.boardTop, self.boardWidth, self.boardHeight,
+                fill=None, border='black',
+                borderWidth=2*self.cellBorderWidth)
+    
+    # converts position coordinates to row and col numbers
+    def convertToRowCol(self, x, y):
+        for row in range(self.rows):
+            for col in range(self.cols):
+                cellLeft, cellTop = self.getCellLeftTop(row, col)
+                cellWidth, cellHeight = self.getCellSize()
+                if ((cellLeft <= x < (cellLeft + cellWidth)) and 
+                    (cellTop <= y < (cellTop + cellHeight))):
+                    # position of the new disc in terms of row and col
+                    return (row, col)
+
+    def drawCell(self, row, col):
+        cellLeft, cellTop = self.getCellLeftTop(row, col)
+        cellWidth, cellHeight = self.getCellSize()
+
+        drawRect(cellLeft, cellTop, cellWidth, cellHeight,
+                fill = None, border='black', 
+                borderWidth=self.cellBorderWidth)
+
+    def getCellLeftTop(self, row, col):
+        cellWidth, cellHeight = self.getCellSize()
+        cellLeft = self.boardLeft + col * cellWidth
+        cellTop = self.boardTop + row * cellHeight
+        return (cellLeft, cellTop)
+
+    def getCellSize(self):
+        cellWidth = self.boardWidth / self.cols
+        cellHeight = self.boardHeight / self.rows
+        return (cellWidth, cellHeight)
+
+class Discs():
+    def __init__(self, row, col, color):
+        self.row = row
+        self.col = col
+        self.color = color
+        self.discsToBeTurned = []
+    
+    # def __repr__(self):
+    #     return f'Disc({self.row}, {self.col}, {self.color})'
+    
+    # parameters will come from the Board class
+    def draw(self, cellSize, cellLeft, cellTop, theBoard):
+        drawCircle(cellLeft, cellTop, cellSize / 2, fill = self.color, 
+                   align = 'left-top', border = 'black', 
+                   borderWidth = (cellSize / 2) / 6)
+        theBoard[self.row][self.col] = self.color
+    
+    def isLegalMove(self, theBoard, numRows, numCols):
+        # opposite is the color of the opposing player's disc:
+        if self.color == 'black':
+            opposite = 'white'
+        elif self.color == 'white':
+            opposite = 'black'
+
+        # makes sure that there is no disc already in this spot
+        # I can add an error message for this
+        if theBoard[self.row][self.col] != None:
+            return False
+        
+        # returns boolean, calls move(), and adds all 
+        # discs that need to be flipped in a list
+        return self.isLegalMoveHelper(opposite, theBoard, numRows, numCols)
+
+    def isLegalMoveHelper(self, opposite, theBoard, numRows, numCols):
+        for rowChange in range(-1, 2):
+            for colChange in range(-1, 2):
+                currRow = self.row
+                currCol = self.col
+                foundOpposite = False
+                self.discsToBeTurned = []
+                while ((0 <= currRow < numRows) and (0 <= currCol < numCols)):
+                    currRow += rowChange
+                    currCol += colChange
+                    if ((currRow < 0 or currRow >= numRows 
+                        or currCol < 0 or currCol >= numCols) 
+                        or (theBoard[currRow][currCol] == None)):
+                        break
+                    elif (theBoard[currRow][currCol] == opposite): 
+                        foundOpposite = True
+                        self.discsToBeTurned.append((currRow, currCol))
+                    elif (theBoard[currRow][currCol] == self.color):
+                        if foundOpposite:
+                            for rowChange2 in range(-1, 2):
+                                for colChange2 in range(-1, 2):
+                                    currRow2 = self.row
+                                    currCol2 = self.col
+                                    foundOpposite2 = False
+                                    toBeAdded = []
+                                    while ((0 <= currRow2 < numRows) and (0 <= currCol2 < numCols)):
+                                        currRow2 += rowChange2
+                                        currCol2 += colChange2
+                                        if ((currRow2 < 0 or currRow2 >= numRows 
+                                             or currCol2 < 0 or currCol2 >= numCols) 
+                                             or (theBoard[currRow2][currCol2] == None)):
+                                            break
+                                        elif (theBoard[currRow2][currCol2] == opposite):
+                                            foundOpposite2 = True
+                                            toBeAdded.append((currRow2, currCol2))
+                                        elif (theBoard[currRow2][currCol2] == self.color):
+                                            if foundOpposite2:
+                                                for otherDisc in toBeAdded:
+                                                    self.discsToBeTurned.append(otherDisc)
+                                                self.discsToBeTurned.append((currRow2, currCol2))
+                            return True
+                        else:
+                            break
+        return False
+
+def onAppStart(app):
+    # variables needed for the board object:
+    app.rows = 8
+    app.cols = 8
+    app.width = 1550
+    app.height = 900
+    app.boardLeft = 475
+    app.boardTop = 80
+    app.boardWidth = 600
+    app.boardHeight = 600
+    app.cellBorderWidth = 2
+    app.board = [([None] * app.cols) for row in range(app.rows)]
+
+    # board object:
+    app.myBoard = Board(app.rows, app.cols, app.width, app.height, app.boardLeft,
+                    app.boardTop, app.boardWidth, app.boardHeight,
+                    app.cellBorderWidth, app.board)
+    
+    # the player whose turn it is (always starts with 'black'):
+    app.player = 'black'
+
+    # variable to display a message if the user clicks at an illegal position
+    app.clickIllegalPos = False
+
+
+    # create a list of all discs with the starting 4 discs
+    app.allDiscs = [Discs(3, 3, 'white'), Discs(3, 4, 'black'), 
+                    Discs(4, 4, 'white'), Discs(4, 3, 'black')]
+
+def redrawAll(app):
+    # intial label and board
+    drawLabel('Othello', 775, 40, size = 50)
+    app.myBoard.draw()
+    app.myBoard.drawBoardBorder()
+
+    # displays a message if the user clicks on an illegal position
+    # and the message disappears after the next click as long 
+    # as the user clicks on a legal positoin
+    if app.clickIllegalPos:
+        drawLabel('Please choose a legal location on the board.', 
+                  775, 710, size = 30)
+    
+    # draw discs from list using cell position and size 
+    # values calculated from the Board class
+    for disc in app.allDiscs:
+        cellSize, cellSize = app.myBoard.getCellSize()
+        cellLeft, cellTop = app.myBoard.getCellLeftTop(disc.row, disc.col)
+        disc.draw(cellSize, cellLeft, cellTop, app.myBoard.theBoard)
+
+def onMousePress(app, mouseX, mouseY):
+    # this variable resets to False so that the message disappears
+    app.clickIllegalPos = False
+
+    # can create a disc based on the location
+    if ((app.boardLeft <= mouseX < (app.boardLeft + app.boardWidth)) and 
+        (app.boardTop <= mouseY < (app.boardTop + app.boardHeight))):
+        (row, col) = app.myBoard.convertToRowCol(mouseX, mouseY)
+        myDisc = Discs(row, col, app.player)
+        if myDisc.isLegalMove(app.myBoard.theBoard, app.myBoard.rows, 
+                              app.myBoard.cols):
+            app.allDiscs.append(myDisc)
+            for disc in myDisc.discsToBeTurned:
+                newRow, newCol = disc
+                newDisc = Discs(newRow, newCol, app.player)
+                for oldDisc in app.allDiscs:
+                    if oldDisc.row == newRow and oldDisc.col == newCol:
+                        app.allDiscs.remove(oldDisc)
+                app.allDiscs.append(newDisc)
+        else:
+            app.clickIllegalPos = True
+    else:
+        app.clickIllegalPos = True
+
+    # changes the player color
+    if app.clickIllegalPos == False:
+        if app.player == 'black':
+            app.player = 'white'
+        elif app.player == 'white':
+            app.player = 'black'
+
+    # print(app.allDiscs)
+
+def main():
+    runApp()
+
+main()
