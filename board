@@ -24,9 +24,9 @@ class Board:
 
     def drawBoardBorder(self):
         # draw the board outline (with double-thickness):
-        drawRect(self.boardLeft, self.boardTop, self.boardWidth, self.boardHeight,
-                fill=None, border='black',
-                borderWidth=2*self.cellBorderWidth)
+        drawRect(self.boardLeft, self.boardTop, self.boardWidth, 
+                 self.boardHeight, fill=None, border='black',
+                 borderWidth=2*self.cellBorderWidth)
     
     # converts position coordinates to row and col numbers
     def convertToRowCol(self, x, y):
@@ -63,10 +63,9 @@ class Discs():
         self.row = row
         self.col = col
         self.color = color
+
+        # list of discs that will be flipped
         self.discsToBeTurned = []
-    
-    # def __repr__(self):
-    #     return f'Disc({self.row}, {self.col}, {self.color})'
     
     # parameters will come from the Board class
     def draw(self, cellSize, cellLeft, cellTop, theBoard):
@@ -92,36 +91,54 @@ class Discs():
         return self.isLegalMoveHelper(opposite, theBoard, numRows, numCols)
 
     def isLegalMoveHelper(self, opposite, theBoard, numRows, numCols):
+        # checks every possible direction around a disc
         for rowChange in range(-1, 2):
             for colChange in range(-1, 2):
                 currRow = self.row
                 currCol = self.col
-                foundOpposite = False
+                foundOpposite = False 
                 self.discsToBeTurned = []
+
                 while ((0 <= currRow < numRows) and (0 <= currCol < numCols)):
+                    # keep checking the (row, col) in the specific
+                    # direction as long as it is legal:
                     currRow += rowChange
                     currCol += colChange
                     if ((currRow < 0 or currRow >= numRows 
                         or currCol < 0 or currCol >= numCols) 
                         or (theBoard[currRow][currCol] == None)):
+                        # breaks out of the while loop
                         break
                     elif (theBoard[currRow][currCol] == opposite): 
                         foundOpposite = True
                         self.discsToBeTurned.append((currRow, currCol))
                     elif (theBoard[currRow][currCol] == self.color):
                         if foundOpposite:
+                            # checks if there are any other 
+                            # opposite colored discs that need 
+                            # to be flipped
                             for rowChange2 in range(-1, 2):
                                 for colChange2 in range(-1, 2):
                                     currRow2 = self.row
                                     currCol2 = self.col
                                     foundOpposite2 = False
+
+                                    # temporary list that could
+                                    # be added to the list of 
+                                    # discs to be flipped
                                     toBeAdded = []
-                                    while ((0 <= currRow2 < numRows) and (0 <= currCol2 < numCols)):
+                                    while ((0 <= currRow2 < numRows) 
+                                           and (0 <= currCol2 < numCols)):
                                         currRow2 += rowChange2
                                         currCol2 += colChange2
-                                        if ((currRow2 < 0 or currRow2 >= numRows 
-                                             or currCol2 < 0 or currCol2 >= numCols) 
-                                             or (theBoard[currRow2][currCol2] == None)):
+                                        if ((currRow2 < 0 
+                                             or currRow2 >= numRows 
+                                             or currCol2 < 0 
+                                             or currCol2 >= numCols) 
+                                             or (theBoard[currRow2][currCol2] == None)
+                                             or (rowChange2 == rowChange 
+                                                 and colChange2 == colChange)):
+                                            # breaks out of the while loop
                                             break
                                         elif (theBoard[currRow2][currCol2] == opposite):
                                             foundOpposite2 = True
@@ -131,12 +148,19 @@ class Discs():
                                                 for otherDisc in toBeAdded:
                                                     self.discsToBeTurned.append(otherDisc)
                                                 self.discsToBeTurned.append((currRow2, currCol2))
+                                            else:
+                                                # breaks out of the while loop
+                                                break
                             return True
                         else:
+                            # breaks out of the while loop
                             break
         return False
 
 def onAppStart(app):
+    newGame(app)
+
+def newGame(app):
     # variables needed for the board object:
     app.rows = 8
     app.cols = 8
@@ -156,6 +180,7 @@ def onAppStart(app):
     
     # the player whose turn it is (always starts with 'black'):
     app.player = 'black'
+    app.opposite = 'white'
 
     # variable to display a message if the user clicks at an illegal position
     app.clickIllegalPos = False
@@ -164,10 +189,21 @@ def onAppStart(app):
     # create a list of all discs with the starting 4 discs
     app.allDiscs = [Discs(3, 3, 'white'), Discs(3, 4, 'black'), 
                     Discs(4, 4, 'white'), Discs(4, 3, 'black')]
+    
+    # checks if game is over
+    app.gameOver = False
+
+    # checks if there should be a pass
+    app.passMove = False
+
+    # will store winner
+    app.winner = None
 
 def redrawAll(app):
     # intial label and board
     drawLabel('Othello', 775, 40, size = 50)
+    if app.gameOver == False and app.passMove == False:
+        drawLabel(f"It is {app.player}'s turn.", 775, 800, size = 50)
     app.myBoard.draw()
     app.myBoard.drawBoardBorder()
 
@@ -185,9 +221,24 @@ def redrawAll(app):
         cellLeft, cellTop = app.myBoard.getCellLeftTop(disc.row, disc.col)
         disc.draw(cellSize, cellLeft, cellTop, app.myBoard.theBoard)
 
+    if app.gameOver == True:
+        # shows up after clicking so might change this
+        if app.winner == 'tie':
+            drawLabel(f"The game is a {app.winner}! Press 'r' to start a new game.", 
+                        775, 800, size = 50)
+        else:
+            drawLabel(f"The game is over. {app.winner} won! Press 'r' to start a new game.", 
+                        775, 800, size = 50)
+
+    if app.passMove == True:
+        drawLabel(f'{app.opposite} has to pass their turn because they have no possible moves',
+                  775, 800, size = 50)
+
 def onMousePress(app, mouseX, mouseY):
     # this variable resets to False so that the message disappears
     app.clickIllegalPos = False
+
+    app.passMove = False
 
     # can create a disc based on the location
     if ((app.boardLeft <= mouseX < (app.boardLeft + app.boardWidth)) and 
@@ -204,19 +255,57 @@ def onMousePress(app, mouseX, mouseY):
                     if oldDisc.row == newRow and oldDisc.col == newCol:
                         app.allDiscs.remove(oldDisc)
                 app.allDiscs.append(newDisc)
+        elif isLegalMovePossible(app, app.player) == False:
+            if isLegalMovePossible(app, app.opposite) == False:
+                app.gameOver = True
+            else:
+                app.passMove = True
         else:
             app.clickIllegalPos = True
     else:
         app.clickIllegalPos = True
 
+    if app.gameOver:
+        end(app)
+
     # changes the player color
-    if app.clickIllegalPos == False:
+    if (app.clickIllegalPos == False and app.gameOver == False):
         if app.player == 'black':
             app.player = 'white'
+            app.opposite = 'black'
         elif app.player == 'white':
             app.player = 'black'
+            app.opposite = 'white'
 
-    # print(app.allDiscs)
+def onKeyPress(app, key):
+    if key == 'r':
+        newGame(app)
+
+# checks if there are any moves possible and whether the game is over
+def isLegalMovePossible(app, color):
+        for row in range(app.rows):
+            for col in range(app.cols):
+                if app.board[row][col] == None:
+                    myDisc = Discs(row, col, color)
+                    if myDisc.isLegalMove(app.board, app.rows, app.cols):
+                        return True
+        return False
+
+def end(app):
+    white = 0
+    black = 0
+    for row in range(app.rows):
+            for col in range(app.cols):
+                if app.board[row][col] == 'black':
+                    black += 1
+                elif app.board[row][col] == 'white':
+                    white += 1
+    if black > white:
+        app.winner = 'Black'
+    elif white > black:
+        app.winner = 'White'
+    elif white == black:
+        app.winner = 'tie'
 
 def main():
     runApp()
